@@ -1,0 +1,215 @@
+'''
+Without CTk
+'''
+
+import random
+import json
+
+# Класс для предметов
+class Item:
+    def __init__(self, name, item_type, value):
+        self.name = name
+        self.type = item_type  # 'weapon' или 'armor'
+        self.value = value
+
+# Расширенный класс персонажа
+class Character:
+    def __init__(self, name, hp, atk, defense, level, exp=0):
+        self.name = name
+        self.hp = hp
+        self.atk = atk
+        self.defense = defense
+        self.level = level
+        self.exp = exp
+        self.inventory = []
+        self.equipped_weapon = None
+        self.equipped_armor = None
+
+    def take_damage(self, damage):
+        effective_damage = max(0, damage - (self.defense + (self.equipped_armor.value if self.equipped_armor else 0)))
+        self.hp -= effective_damage
+        if self.hp < 0:
+            self.hp = 0
+
+    def is_alive(self):
+        return self.hp > 0
+
+    def attack(self):
+        base_attack = self.atk + (self.equipped_weapon.value if self.equipped_weapon else 0)
+        min_attack = int(base_attack * 0.8)
+        max_attack = int(base_attack * 1.2)
+        return random.randint(min_attack, max_attack)
+
+    def gain_exp(self, exp):
+        self.exp += exp
+        while self.exp >= 100 * self.level:
+            self.level_up()
+
+    def level_up(self):
+        self.level += 1
+        self.hp += 20
+        self.atk += 5
+        self.defense += 2
+        print(f"{self.name} достиг {self.level} уровня!")
+
+    # Метод для сохранения данных персонажа
+    def save(self, filename="savegame.json"):
+        data = {
+            "name": self.name,
+            "hp": self.hp,
+            "atk": self.atk,
+            "defense": self.defense,
+            "level": self.level,
+            "exp": self.exp,
+            "inventory": [{"name": item.name, "type": item.type, "value": item.value} for item in self.inventory],
+            "equipped_weapon": {"name": self.equipped_weapon.name, "type": self.equipped_weapon.type, "value": self.equipped_weapon.value} if self.equipped_weapon else None,
+            "equipped_armor": {"name": self.equipped_armor.name, "type": self.equipped_armor.type, "value": self.equipped_armor.value} if self.equipped_armor else None
+        }
+        with open(filename, "w") as file:
+            json.dump(data, file, indent=4)
+        print("Игра сохранена.")
+
+    # Метод для загрузки данных персонажа
+    @staticmethod
+    def load(filename="savegame.json"):
+        try:
+            with open(filename, "r") as file:
+                data = json.load(file)
+
+            # Создание нового персонажа с данными из файла
+            player = Character(
+                name=data["name"],
+                hp=data["hp"],
+                atk=data["atk"],
+                defense=data["defense"],
+                level=data["level"],
+                exp=data["exp"]
+            )
+
+            # Восстановление инвентаря
+            player.inventory = [Item(item["name"], item["type"], item["value"]) for item in data["inventory"]]
+
+            # Восстановление экипировки
+            if data["equipped_weapon"]:
+                player.equipped_weapon = Item(data["equipped_weapon"]["name"], data["equipped_weapon"]["type"], data["equipped_weapon"]["value"])
+            if data["equipped_armor"]:
+                player.equipped_armor = Item(data["equipped_armor"]["name"], data["equipped_armor"]["type"], data["equipped_armor"]["value"])
+
+            print("Игра загружена.")
+            return player
+
+        except FileNotFoundError:
+            print("Сохраненная игра не найдена.")
+            return None
+
+# Функция для боя
+def battle(player, enemy):
+    print(f"Вы встретили {enemy.name}!")
+    while player.is_alive() and enemy.is_alive():
+        print("\n--- Ваш ход ---")
+        print(f"{player.name}: Здоровье = {player.hp}, Уровень = {player.level}")
+        print(f"{enemy.name}: Здоровье = {enemy.hp}")
+        action = input("Выберите действие: 1 - Атаковать, 2 - Защититься, 3 - Сохранить игру: ")
+
+        if action == "1":
+            damage = player.attack()
+            enemy.take_damage(damage)
+            print(f"Вы атаковали {enemy.name} и нанесли {damage} урона.")
+        elif action == "2":
+            temp_defense = player.defense + 5
+            print(f"Вы提高了 свою защиту до {temp_defense}.")
+        elif action == "3":
+            player.save()
+            print("Игра сохранена. Продолжайте игру...")
+        else:
+            print("Неверный выбор. Вы пропускаете ход.")
+
+        if not enemy.is_alive():
+            print(f"{enemy.name} повержен! Вы победили!")
+            player.gain_exp(enemy.level * 50)
+            break
+
+        if enemy.is_alive():
+            damage = enemy.attack()
+            player.take_damage(damage)
+            print(f"{enemy.name} атаковал вас и нанес {damage} урона.")
+
+    if not player.is_alive():
+        print("Вы погибли... Игра окончена.")
+    else:
+        print("Вы выиграли бой!")
+
+# Создание разных типов врагов
+enemies_data = [
+    {"name": "Гоблин", "hp": 60, "atk": 10, "defense": 5, "level": 1},
+    {"name": "Орк", "hp": 100, "atk": 15, "defense": 8, "level": 2},
+    {"name": "Скелет", "hp": 80, "atk": 12, "defense": 6, "level": 1},
+    {"name": "Тролль", "hp": 150, "atk": 20, "defense": 10, "level": 3}
+]
+
+# Предметы
+items = [
+    Item("Ржавый меч", "weapon", 5),
+    Item("Стальной щит", "armor", 10),
+    Item("Меч новичка", "weapon", 10),
+    Item("Кожаная броня", "armor", 5)
+]
+
+# Проверка наличия сохраненной игры
+print("Добро пожаловать в игру!")
+choice = input("Хотите загрузить сохраненную игру? (да/нет): ").lower()
+
+if choice == "да":
+    player = Character.load()
+    if not player:
+        player_name = input("Введите имя вашего персонажа: ")
+        player = Character(player_name, hp=100, atk=15, defense=10, level=1)
+else:
+    player_name = input("Введите имя вашего персонажа: ")
+    player = Character(player_name, hp=100, atk=15, defense=10, level=1)
+
+# Главный цикл игры
+while player.is_alive():
+    print("\n--- Меню игры ---")
+    print("1. Исследовать локацию")
+    print("2. Просмотреть инвентарь")
+    print("3. Сохранить игру")
+    print("4. Выйти из игры")
+    choice = input("Выберите действие: ")
+
+    if choice == "1":
+        enemy_data = random.choice(enemies_data)
+        enemy = Character(enemy_data["name"], hp=enemy_data["hp"], atk=enemy_data["atk"], defense=enemy_data["defense"], level=enemy_data["level"])
+        battle(player, enemy)
+
+        # Возможность найти предмет
+        if random.random() < 0.5:
+            found_item = random.choice(items)
+            print(f"Вы нашли {found_item.name}!")
+            player.inventory.append(found_item)
+
+    elif choice == "2":
+        print("Ваш инвентарь:")
+        for i, item in enumerate(player.inventory):
+            print(f"{i+1}. {item.name} ({item.type})")
+        equip_choice = input("Введите номер предмета для экипировки (или 0 для выхода): ")
+        if equip_choice.isdigit():
+            index = int(equip_choice) - 1
+            if 0 <= index < len(player.inventory):
+                item = player.inventory[index]
+                if item.type == "weapon":
+                    player.equipped_weapon = item
+                    print(f"Вы экипировали {item.name}")
+                elif item.type == "armor":
+                    player.equipped_armor = item
+                    print(f"Вы экипировали {item.name}")
+
+    elif choice == "3":
+        player.save()
+
+    elif choice == "4":
+        print("Спасибо за игру!")
+        player.save()  # Автоматическое сохранение перед выходом
+        break
+
+print("Игра окончена.")
